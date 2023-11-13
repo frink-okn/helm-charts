@@ -1,0 +1,7 @@
+{{- if .Values.lakefs.ingress.enabled }}
+{{- range $host := .Values.lakefs.ingress.hosts }}
+  {{- range $host.paths }}
+  http{{ if $.Values.lakefs.ingress.tls }}s{{ end }}://{{ $host.host }}{{ . }}
+  {{- end }}
+{{- end }}
+{{ end }}

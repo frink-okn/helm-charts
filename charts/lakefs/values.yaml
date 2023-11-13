@@ -1,0 +1,108 @@
+# Default values for lakefs.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+lakefs:
+  # Default values for lakefs.
+  # This is a YAML-formatted file.
+  # Declare variables to be passed into your templates.
+
+  replicaCount: 1
+
+  image:
+    repository: treeverse/lakefs
+    pullPolicy: Always
+
+  ingress:
+    enabled: true
+    annotations: 
+      cert-manager.io/cluster-issuer: letsencrypt
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+    ingressClassName: ""
+    defaultBackend: {}
+    hosts:
+      - host: frink-lakefs.apps.renci.org
+        paths:
+          - "/"
+        # redirect to a different service based on path prefix for advanced use cases only
+        # pathsOverrides:
+        #   - path: /some/path
+        #     serviceName: other-example.local
+        #     servicePort: 80
+    tls:
+     - secretName: frink-lakefs.apps.renci.org
+       hosts:
+         - frink-lakefs.apps.renci.org
+  podAnnotations: {}
+  deployment:
+    port: 8000
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  resources:
+    limits:
+      memory: 4Gi
+      cpu: 1  
+
+  s3Fallback:
+    enabled: false
+
+  lakefsConfig: |
+    database:
+      type: local
+    blockstore:
+      type: local
+
+  # yamllint disable rule:comments
+
+  # Example: using node instance storage for caching committed data:
+  # For more information: https://www.vipmind.me/infra/aws/how-to-use-ephemeral-disk-from-ec2-instance-in-eks.html
+  #committedLocalCacheVolume:
+  #  hostPath:
+  #    path: /media/ephemeral0
+
+  # yamllint enable
+
+  serviceAccount: {}
+
+  # Extra Environment Values - allows yaml definitions
+  extraEnvVars:
+  #  - name: VALUE_FROM_SECRET
+  #    valueFrom:
+  #      secretKeyRef:
+  #        name: secret_name
+  #        key: secret_key
+  # Override K8S defaults for readinessProbe
+  # readinessProbe:
+  #   failureThreshold: 10
+  #   periodSeconds: 5
+  #   successThreshold: 4
+  #   timeoutSeconds: 1
+  # Override K8S defaults for livenessProbe
+  # livenessProbe:
+  #   failureThreshold: 20
+  #   periodSeconds: 5
+  #   successThreshold: 4
+  #   timeoutSeconds: 1
+  #   initialDelaySeconds: 5
+
+  # Start local postgres pod for quick start, not for production
+  useDevPostgres: true
+  dataVolume:
+    name: "lakefs-local-data"
+    size: 100Gi
+    storageClassName: ""
+  extraVolumeMounts:
+  - mountPath: /home/lakefs
+    name: lakefs-local-data
+  extraVolumes: 
+  - name: lakefs-local-data
+    persistentVolumeClaim:
+       # same as lakfs.dataVolume.name
+      claimName: lakefs-local-data
+
+

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.lakefs.dataVolume.name }}  
+spec:
+  storageClassName: {{ .Values.lakefs.dataVolume.storageClassName }}
+  resources:
+    requests:
+      storage: {{ .Values.lakefs.dataVolume.size }}
+  accessModes:
+    - ReadWriteMany
