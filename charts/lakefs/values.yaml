@@ -1,12 +1,22 @@
 # Default values for lakefs.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
+postgresql:
+  auth:
+    enablePostgresUser: false
+    existingSecret: "postgres-secret"
+    username: "lakefs"
+    database: "lakefs"
+
+  primary:
+    resources:
+      limits:
+        ephemeral-storage: 500Mi
 
 lakefs:
   # Default values for lakefs.
   # This is a YAML-formatted file.
   # Declare variables to be passed into your templates.
-
   replicaCount: 1
 
   image:
@@ -15,26 +25,31 @@ lakefs:
 
   ingress:
     enabled: true
-    annotations: 
+    annotations:
       cert-manager.io/cluster-issuer: letsencrypt
       nginx.ingress.kubernetes.io/enable-cors: "true"
-      # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "86400"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "86400"
+      nginx.ingress.kubernetes.io/send-timeout: "86400"
+      nginx.ingress.kubernetes.io/service-upstream: "true"
+      nginx.ingress.kubernetes.io/upstream-keepalive-timeout: "86400"
+      nginx.ingress.kubernetes.io/proxy-body-size: 20000000m
+      nginx.ingress.kubernetes.io/whitelist-source-range: 0.0.0.0/0,::/0
     ingressClassName: ""
     defaultBackend: {}
     hosts:
-      - host: frink-lakefs.apps.renci.org
-        paths:
-          - "/"
-        # redirect to a different service based on path prefix for advanced use cases only
-        # pathsOverrides:
-        #   - path: /some/path
-        #     serviceName: other-example.local
-        #     servicePort: 80
-    tls:
-     - secretName: frink-lakefs.apps.renci.org
-       hosts:
-         - frink-lakefs.apps.renci.org
+#      - host: ""
+#        paths:
+#          - "/"
+#        # redirect to a different service based on path prefix for advanced use cases only
+#        # pathsOverrides:
+#        #   - path: /some/path
+#        #     serviceName: other-example.local
+#        #     servicePort: 80
+#    tls:
+#     - secretName: ""
+#       hosts:
+#         - ""
   podAnnotations: {}
   deployment:
     port: 8000
@@ -46,16 +61,30 @@ lakefs:
   resources:
     limits:
       memory: 4Gi
-      cpu: 1  
+      cpu: 2
 
   s3Fallback:
     enabled: false
+    
+  committedLocalCacheVolume:
+    name: committed-local-cache
+    persistentVolumeClaim:
+      claimName: committed-local-cache
 
+  secrets:
+    authEncryptSecretKey:  ""
+    databaseConnectionString: postgres://lakefs:lakefs@lakefs-postgresql:5432/lakefs?sslmode=disable
   lakefsConfig: |
+    logging:
+      level: TRACE
     database:
-      type: local
+      type: postgres
+      postgres:
+        connection_max_lifetime: 3h
     blockstore:
       type: local
+      local:
+        path: "/data"
 
   # yamllint disable rule:comments
 
@@ -94,15 +123,18 @@ lakefs:
   useDevPostgres: true
   dataVolume:
     name: "lakefs-local-data"
-    size: 100Gi
-    storageClassName: ""
+    size: 1500Gi
+    storageClassName: "basic"
   extraVolumeMounts:
-  - mountPath: /home/lakefs
+  - mountPath: /data
     name: lakefs-local-data
   extraVolumes: 
   - name: lakefs-local-data
     persistentVolumeClaim:
        # same as lakfs.dataVolume.name
       claimName: lakefs-local-data
-
-
+#  - name: committed-local-cache
+#    persistentVolumeClaim:
+#      # same as lakfs.dataVolume.name
+#      claimName: committed-local-cache
+cache_size: 10Gi

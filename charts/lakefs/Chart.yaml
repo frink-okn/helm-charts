@@ -26,4 +26,8 @@ appVersion: "1.16.0"
 dependencies:
   - name: lakefs
     repository: https://charts.lakefs.io
-    version: "1.0.2"
+    version: "1.2.8"
+
+  - name: postgresql
+    repository: oci://registry-1.docker.io/bitnamicharts
+    version: "13.2.28"
