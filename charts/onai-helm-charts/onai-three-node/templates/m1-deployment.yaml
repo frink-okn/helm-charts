@@ -1,0 +1,100 @@
+{{- if .Values.m1.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "onai-three-node.m1.fullname" . }}
+  labels:
+    {{- include "onai-three-node.m1.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.m1.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "onai-three-node.m1.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.m1.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "onai-three-node.m1.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "onai-three-node.serviceAccountName" . }}
+      {{- with .Values.m1.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: m1-web
+          {{- with .Values.m1.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          stdin: True
+          tty: True
+          image: "{{ .Values.m1.image.repository }}:{{ .Values.m1.image.tag }}"
+          imagePullPolicy: {{ .Values.m1.image.pullPolicy }}
+          {{- with .Values.m1.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.m1.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.m1.service.httpPort }}
+              protocol: TCP
+            - name: https
+              containerPort: {{ .Values.m1.service.httpsPort }}
+              protocol: TCP
+          env:
+            - name: M3_HOST
+              value: {{ .Values.m1.env.M3_HOST | default (include "onai-three-node.m3.internalHost" .) | quote }}
+            - name: M3_PORT
+              value: {{ .Values.m1.env.M3_PORT | quote }}
+            - name: NODE_ROLE
+              value: {{ .Values.m1.env.NODE_ROLE | quote }}
+            - name: HTTP_PORT
+              value: {{ .Values.m1.env.HTTP_PORT | quote }}
+            - name: HTTPS_PORT
+              value: {{ .Values.m1.env.HTTPS_PORT | quote }}
+            {{- range .Values.m1.extraEnv }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+          {{- with .Values.m1.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.m1.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.m1.persistence.enabled }}
+            - name: m1-data
+              mountPath: {{ .Values.m1.persistence.mountPath }}
+            {{- end }}
+      volumes:
+        {{- if .Values.m1.persistence.enabled }}
+        - name: m1-data
+          persistentVolumeClaim:
+            claimName: {{ include "onai-three-node.m1.fullname" . }}-data
+        {{- end }}
+      {{- with .Values.m1.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.m1.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.m1.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

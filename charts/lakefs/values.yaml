@@ -2,6 +2,13 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 postgresql:
+  global:
+    security:
+      allowInsecureImages: True
+  image:
+    registry: containers.renci.org
+    repository: bitnami/postgresql
+    tag: 17.6.0-debian-12-r4
   auth:
     enablePostgresUser: false
     existingSecret: "postgres-secret"
@@ -10,7 +17,7 @@ postgresql:
   primary:
     resources:
       limits:
-        ephemeral-storage: 500Mi
+        ephemeral-storage: 1Gi
         memory: 2Gi
         cpu: 1
 
@@ -19,36 +26,18 @@ lakefs:
   # This is a YAML-formatted file.
   # Declare variables to be passed into your templates.
   replicaCount: 1
-
+  storageLocation: "s3"
   image:
     repository: treeverse/lakefs
     pullPolicy: Always
 
   ingress:
-    enabled: true
+    enabled: false
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt
-      #upload size settings
-      nginx.ingress.kubernetes.io/client-body-buffer-size: '16m'
-      nginx.ingress.kubernetes.io/proxy-body-size: '1g'
-      # Request/response buffering (on for upload safety)
-      nginx.ingress.kubernetes.io/proxy-buffering: 'on'
-      nginx.ingress.kubernetes.io/proxy-request-buffering: 'on'
-      nginx.ingress.kubernetes.io/proxy-max-temp-file-size: '2000m'
-      # timeout settings for resources
-      nginx.ingress.kubernetes.io/proxy-read-timeout: '300'
-      nginx.ingress.kubernetes.io/proxy-connect-timeout: '60'
-      nginx.ingress.kubernetes.io/send-timeout: '300'
-      nginx.ingress.kubernetes.io/upstream-keepalive-timeout: '60'
-      # http support
-      nginx.ingress.kubernetes.io/proxy-http-version: '1.1'
-      #cors and upstream settings
-      nginx.ingress.kubernetes.io/enable-cors: 'true'
-      nginx.ingress.kubernetes.io/service-upstream: 'true'
-      nginx.ingress.kubernetes.io/whitelist-source-range: 0.0.0.0/0,::/0
+      {}
     ingressClassName: ""
     defaultBackend: {}
-    hosts:
+    hosts: []
 #      - host: ""
 #        paths:
 #          - "/"
@@ -61,91 +50,76 @@ lakefs:
 #     - secretName: ""
 #       hosts:
 #         - ""
-  podAnnotations: {}
-  deployment:
-    port: 8000
-
-  service:
-    type: ClusterIP
-    port: 80
-
   resources:
     limits:
-      memory: 4Gi
-      cpu: 2
+      memory: 2Gi
+      cpu: 1
+      ephemeral-storage: 1Gi
 
   s3Fallback:
     enabled: false
     
   committedLocalCacheVolume:
+    enabled: False
     name: committed-local-cache
+    storageClassName: "basic"
     persistentVolumeClaim:
       claimName: committed-local-cache
+    size: 1Gi
+  dataVolume:
+    enabled: False
+    name: "lakefs-local-data"
+    size: 1500Gi
+    storageClassName: "basic"
 
   secrets:
     authEncryptSecretKey:  ""
     databaseConnectionString: postgres://lakefs:lakefs@lakefs-postgresql:5432/lakefs?sslmode=disable
-  lakefsConfig: |
-    logging:
-      level: TRACE
-    database:
-      type: postgres
-      postgres:
-        connection_max_lifetime: 3h
-    blockstore:
-      type: local
-      local:
-        path: "/data"
+  lakefsConfig: { }
+        
 
-  # yamllint disable rule:comments
+#
+#blockstore:
+#  type: local
+#  local:
+#    path: "/data"
 
-  # Example: using node instance storage for caching committed data:
-  # For more information: https://www.vipmind.me/infra/aws/how-to-use-ephemeral-disk-from-ec2-instance-in-eks.html
-  #committedLocalCacheVolume:
-  #  hostPath:
-  #    path: /media/ephemeral0
+  useDevPostgres: false
 
-  # yamllint enable
-
-  serviceAccount: {}
-
-  # Extra Environment Values - allows yaml definitions
-  extraEnvVars:
-  #  - name: VALUE_FROM_SECRET
-  #    valueFrom:
-  #      secretKeyRef:
-  #        name: secret_name
-  #        key: secret_key
-  # Override K8S defaults for readinessProbe
-  # readinessProbe:
-  #   failureThreshold: 10
-  #   periodSeconds: 5
-  #   successThreshold: 4
-  #   timeoutSeconds: 1
-  # Override K8S defaults for livenessProbe
-  # livenessProbe:
-  #   failureThreshold: 20
-  #   periodSeconds: 5
-  #   successThreshold: 4
-  #   timeoutSeconds: 1
-  #   initialDelaySeconds: 5
-
-  # Start local postgres pod for quick start, not for production
-  useDevPostgres: true
-  dataVolume:
-    name: "lakefs-local-data"
-    size: 1500Gi
-    storageClassName: "basic"
   extraVolumeMounts:
   - mountPath: /data
     name: lakefs-local-data
-  extraVolumes: 
-  - name: lakefs-local-data
-    persistentVolumeClaim:
-       # same as lakfs.dataVolume.name
-      claimName: lakefs-local-data
+#  extraVolumes:
+#  - name: lakefs-local-data
+#    persistentVolumeClaim:
+#       # same as lakfs.dataVolume.name
+#      claimName: lakefs-local-data
 #  - name: committed-local-cache
 #    persistentVolumeClaim:
 #      # same as lakfs.dataVolume.name
 #      claimName: committed-local-cache
 cache_size: 10Gi
+
+
+lakefs-acl:
+  service:
+    type: ClusterIP
+    port: 9000
+  # ACL Server Specific Configuration
+  acl:
+    # Database connection string (default matches docker-compose for dev)
+    # In prod, this should point to a real Postgres or persistent volume
+    databaseConnectionString: "sqlite:////data/acl.db"
+    # Secret Management
+    secrets:
+      create: true # If true, creates a Secret resource with the values below
+      name: ""     # If set, uses this existing secret name instead of creating one
+    # Secrets (will be base64 encoded by the chart if create=true)
+    apiToken: "super-secret-token"
+    encryptionKey: "G0lMOOHFOfb8oUUzLZxHlhjRKryUQQvchzwhBg-kTm4="
+
+    # Persistence for SQLite (optional, if using SQLite)
+    persistence:
+      enabled: true
+      size: 1Gi
+      accessMode: ReadWriteOnce

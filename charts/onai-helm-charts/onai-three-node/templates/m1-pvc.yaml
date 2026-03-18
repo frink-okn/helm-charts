@@ -1,0 +1,15 @@
+{{- if and .Values.m1.enabled .Values.m1.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "onai-three-node.m1.fullname" . }}-data
+  labels:
+    {{- include "onai-three-node.m1.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.m1.persistence.accessMode }}
+  storageClassName: {{ .Values.m1.persistence.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.m1.persistence.size }}
+{{- end }}

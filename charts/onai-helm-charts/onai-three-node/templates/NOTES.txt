@@ -1,0 +1,38 @@
+ONAI Three-Node Architecture deployed!
+
+Components:
+{{- if .Values.m1.enabled }}
+  M1 (Web):     {{ include "onai-three-node.m1.fullname" . }}
+                 HTTP: {{ .Values.m1.service.httpPort }}, HTTPS: {{ .Values.m1.service.httpsPort }}
+                 HDD Volume: {{ .Values.m1.persistence.size }} at {{ .Values.m1.persistence.mountPath }}
+{{- end }}
+{{- if .Values.m2.enabled }}
+  M2 (vLLM):    {{ include "onai-three-node.m2.fullname" . }}
+                 vLLM API: {{ .Values.m2.service.port }}
+                 Model: {{ .Values.m2.env.VLLM_MODEL }}
+                 GPU: {{ .Values.m2.gpu.accelerator }} x{{ .Values.m2.gpu.count }}
+                 HDD Volume: {{ .Values.m2.persistence.size }} at {{ .Values.m2.persistence.mountPath }}
+{{- end }}
+{{- if .Values.m3.enabled }}
+  M3 (Gateway): {{ include "onai-three-node.m3.fullname" . }}
+                 Internal: {{ .Values.m3.service.internalPort }}
+                 External: {{ .Values.m3.service.externalPort }}
+                 SSD Volume: {{ .Values.m3.ssd.size }} at {{ .Values.m3.ssd.mountPath }}
+                 HDD Volume: {{ .Values.m3.persistence.size }} at {{ .Values.m3.persistence.mountPath }}
+{{- end }}
+
+{{- if .Values.gateway.enabled }}
+
+GKE Gateway:
+  Gateway: {{ include "onai-three-node.fullname" . }}-gateway
+  HTTPRoute: {{ include "onai-three-node.fullname" . }}-http-route
+
+  Get the external IP:
+    kubectl get gateway {{ include "onai-three-node.fullname" . }}-gateway -n {{ .Release.Namespace }} -o jsonpath='{.status.addresses[0].value}'
+{{- end }}
+
+Service Discovery (auto-configured env vars):
+  M1 -> M3: $M3_HOST:$M3_PORT
+  M2 -> M3: $M3_HOST:$M3_PORT
+  M3 -> M1: $M1_HOST:$M1_HTTP_PORT
+  M3 -> M2: $M2_HOST:$M2_PORT

@@ -1,3 +1,4 @@
+{{ if .Values.lakefs.dataVolume.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -10,8 +11,10 @@ spec:
     requests:
       storage: {{ .Values.lakefs.dataVolume.size }}
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
+{{ end }}
 ---
+{{ if  .Values.lakefs.committedLocalCacheVolume.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -19,9 +22,13 @@ metadata:
   annotations:
     "helm.sh/resource-policy": "keep"
 spec:
-  storageClassName: {{ .Values.lakefs.dataVolume.storageClassName }}
+  {{ if  .Values.lakefs.committedLocalCacheVolume.storageClassName }}
+  storageClassName: {{ .Values.lakefs.committedLocalCacheVolume.storageClassName }}
+  {{ end }}
   resources:
     requests:
-      storage: {{ .Values.cache_size }}
+      storage: {{ .Values.lakefs.committedLocalCacheVolume.size }}
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
+{{ end }}
+

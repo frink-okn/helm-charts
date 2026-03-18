@@ -1,0 +1,21 @@
+{{- if .Values.m1.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "onai-three-node.m1.fullname" . }}
+  labels:
+    {{- include "onai-three-node.m1.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.m1.service.type }}
+  ports:
+    - port: {{ .Values.m1.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: {{ .Values.m1.service.httpsPort }}
+      targetPort: https
+      protocol: TCP
+      name: https
+  selector:
+    {{- include "onai-three-node.m1.selectorLabels" . | nindent 4 }}
+{{- end }}

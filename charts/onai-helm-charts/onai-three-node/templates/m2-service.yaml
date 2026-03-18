@@ -1,0 +1,17 @@
+{{- if .Values.m2.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "onai-three-node.m2.fullname" . }}
+  labels:
+    {{- include "onai-three-node.m2.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.m2.service.port }}
+      targetPort: vllm
+      protocol: TCP
+      name: vllm
+  selector:
+    {{- include "onai-three-node.m2.selectorLabels" . | nindent 4 }}
+{{- end }}

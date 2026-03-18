@@ -1,0 +1,158 @@
+{{- if .Values.networkPolicy.enabled }}
+# M1 network policy: allow ingress from Gateway and from M3 internal
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "onai-three-node.m1.fullname" . }}-netpol
+  labels:
+    {{- include "onai-three-node.m1.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "onai-three-node.m1.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow HTTP/HTTPS from anywhere (Gateway traffic)
+    - ports:
+        - port: {{ .Values.m1.service.httpPort }}
+          protocol: TCP
+        - port: {{ .Values.m1.service.httpsPort }}
+          protocol: TCP
+    # Allow internal TCP from M3
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m3.selectorLabels" . | nindent 14 }}
+  egress:
+    # Allow traffic to M3 internal port
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m3.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m3.service.internalPort }}
+          protocol: TCP
+    # Allow DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+# M2 network policy: internal only, talks to M3
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "onai-three-node.m2.fullname" . }}-netpol
+  labels:
+    {{- include "onai-three-node.m2.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "onai-three-node.m2.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow internal TCP from M3
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m3.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m2.service.port }}
+          protocol: TCP
+  egress:
+    # Allow traffic to M3 internal port
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m3.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m3.service.internalPort }}
+          protocol: TCP
+    # Allow DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow egress to download models (HuggingFace, etc.)
+    - ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+---
+# M3 network policy: hub node, talks to M1, M2, and external
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "onai-three-node.m3.fullname" . }}-netpol
+  labels:
+    {{- include "onai-three-node.m3.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "onai-three-node.m3.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow internal TCP from M1
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m1.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m3.service.internalPort }}
+          protocol: TCP
+    # Allow internal TCP from M2
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m2.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m3.service.internalPort }}
+          protocol: TCP
+    {{- if .Values.m3.service.externalEnabled }}
+    # Allow external TCP ingress
+    - ports:
+        - port: {{ .Values.m3.service.externalPort }}
+          protocol: TCP
+    {{- end }}
+  egress:
+    # Allow traffic to M1
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m1.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m1.service.httpPort }}
+          protocol: TCP
+    # Allow traffic to M2
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m2.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m2.service.port }}
+          protocol: TCP
+    # Allow DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow TCP egress to outside world
+    - ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+{{- end }}
