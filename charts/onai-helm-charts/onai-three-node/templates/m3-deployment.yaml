@@ -7,6 +7,8 @@ metadata:
     {{- include "onai-three-node.m3.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.m3.replicaCount }}
+  strategy:
+    type: {{ .Values.m3.deploymentStrategy | default "Recreate" }}
   selector:
     matchLabels:
       {{- include "onai-three-node.m3.selectorLabels" . | nindent 6 }}
@@ -28,6 +30,39 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              {{- if .Values.m3.ssd.enabled }}
+              chown -R {{ .Values.m3.podSecurityContext.runAsUser | default 999 }}:{{ .Values.m3.podSecurityContext.fsGroup | default 999 }} {{ .Values.m3.ssd.mountPath }} && \
+              chmod -R g+rw {{ .Values.m3.ssd.mountPath }}
+              {{- end }}
+              {{- if .Values.m3.persistence.enabled }}
+              chown -R {{ .Values.m3.podSecurityContext.runAsUser | default 999 }}:{{ .Values.m3.podSecurityContext.fsGroup | default 999 }} {{ .Values.m3.persistence.mountPath }} && \
+              chmod -R g+rw {{ .Values.m3.persistence.mountPath }}
+              {{- end }}
+          securityContext:
+            runAsUser: 0
+          resources:
+            limits:
+              cpu: 1
+              memory: 1Gi
+            requests:
+              cpu: 1
+              memory: 1Gi
+          volumeMounts:
+            {{- if .Values.m3.ssd.enabled }}
+            - name: m3-ssd
+              mountPath: {{ .Values.m3.ssd.mountPath }}
+            {{- end }}
+            {{- if .Values.m3.persistence.enabled }}
+            - name: m3-data
+              mountPath: {{ .Values.m3.persistence.mountPath }}
+            {{- end }}
       containers:
         - name: m3-gateway
           {{- with .Values.m3.securityContext }}

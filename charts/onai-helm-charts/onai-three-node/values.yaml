@@ -20,8 +20,8 @@ m1:
   replicaCount: 1
 
   image:
-    repository: debian
-    tag: "bookworm-slim"
+    repository: ubuntu
+    tag: "24.04"
     pullPolicy: IfNotPresent
 
   # Command to keep the container running - override for your app
@@ -175,14 +175,14 @@ m3:
   replicaCount: 1
 
   image:
-    repository: debian
-    tag: "bookworm-slim"
-    pullPolicy: IfNotPresent
+    repository: us-west4-docker.pkg.dev/aardant-489720/aardant-repo/aardant
+    tag: "0.76.3"
+    pullPolicy: Always
 
   # Command to keep the container running - override for your app
-  command:
-    - /bin/sh
-  args: []
+#  command:
+#    - /bin/sh
+#  args: []
 
   resources:
     requests:
@@ -229,11 +229,16 @@ m3:
     accessMode: ReadWriteOnce
     mountPath: "/data"
 
+  deploymentStrategy: "Recreate"
+
   nodeSelector: {}
   tolerations: []
   affinity: {}
   podAnnotations: {}
-  podSecurityContext: {}
+  podSecurityContext:
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
   securityContext: {}
 
 # =============================================================================
