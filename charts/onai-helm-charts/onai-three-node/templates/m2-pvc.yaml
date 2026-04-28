@@ -1,0 +1,31 @@
+{{- if and .Values.m2.enabled .Values.m2.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "onai-three-node.m2.fullname" . }}-data
+  labels:
+    {{- include "onai-three-node.m2.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.m2.persistence.accessMode }}
+  storageClassName: {{ .Values.m2.persistence.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.m2.persistence.size }}
+---
+{{- end }}
+{{- if and .Values.m2.enabled .Values.m2.modelCache.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "onai-three-node.m2.fullname" . }}-model-cache
+  labels:
+    {{- include "onai-three-node.m2.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.m2.modelCache.accessMode }}
+  storageClassName: {{ .Values.m2.modelCache.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.m2.modelCache.size }}
+{{- end }}

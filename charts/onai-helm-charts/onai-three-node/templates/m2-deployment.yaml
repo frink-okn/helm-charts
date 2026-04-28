@@ -1,0 +1,140 @@
+{{- if .Values.m2.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "onai-three-node.m2.fullname" . }}
+  labels:
+    {{- include "onai-three-node.m2.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.m2.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "onai-three-node.m2.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.m2.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "onai-three-node.m2.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "onai-three-node.serviceAccountName" . }}
+      {{- with .Values.m2.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: m2-vllm
+          {{- with .Values.m2.securityContext }}
+          stdin: True
+          tty: True
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.m2.image.repository }}:{{ .Values.m2.image.tag }}"
+          imagePullPolicy: {{ .Values.m2.image.pullPolicy }}
+          {{- with .Values.m2.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.m2.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: vllm
+              containerPort: {{ .Values.m2.service.port }}
+              protocol: TCP
+          env:
+            - name: VLLM_MODEL
+              value: {{ .Values.m2.env.VLLM_MODEL | quote }}
+            - name: VLLM_PORT
+              value: {{ .Values.m2.env.VLLM_PORT | quote }}
+            - name: VLLM_GPU_MEMORY_UTILIZATION
+              value: {{ .Values.m2.env.VLLM_GPU_MEMORY_UTILIZATION | quote }}
+            - name: VLLM_MAX_MODEL_LEN
+              value: {{ .Values.m2.env.VLLM_MAX_MODEL_LEN | quote }}
+            - name: VLLM_DTYPE
+              value: {{ .Values.m2.env.VLLM_DTYPE | quote }}
+            - name: M3_HOST
+              value: {{ .Values.m2.env.M3_HOST | default (include "onai-three-node.m3.internalHost" .) | quote }}
+            - name: M3_PORT
+              value: {{ .Values.m2.env.M3_PORT | quote }}
+            - name: NODE_ROLE
+              value: {{ .Values.m2.env.NODE_ROLE | quote }}
+            {{- range .Values.m2.extraEnv }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+          {{- with .Values.m2.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            requests:
+              cpu: {{ .Values.m2.resources.requests.cpu | quote }}
+              memory: {{ .Values.m2.resources.requests.memory | quote }}
+              {{- if .Values.m2.gpu.enabled }}
+              {{ .Values.m2.gpu.type }}: {{ .Values.m2.gpu.count }}
+              {{- end }}
+            limits:
+              cpu: {{ .Values.m2.resources.limits.cpu | quote }}
+              memory: {{ .Values.m2.resources.limits.memory | quote }}
+              {{- if .Values.m2.gpu.enabled }}
+              {{ .Values.m2.gpu.type }}: {{ .Values.m2.gpu.count }}
+              {{- end }}
+          volumeMounts:
+            {{- if .Values.m2.persistence.enabled }}
+            - name: m2-data
+              mountPath: {{ .Values.m2.persistence.mountPath }}
+            {{- end }}
+            {{- if .Values.m2.modelCache.enabled }}
+            - name: m2-model-cache
+              mountPath: {{ .Values.m2.modelCache.mountPath }}
+            {{- end }}
+{{/*          livenessProbe:*/}}
+{{/*            httpGet:*/}}
+{{/*              path: /health*/}}
+{{/*              port: vllm*/}}
+{{/*            initialDelaySeconds: 120*/}}
+{{/*            periodSeconds: 30*/}}
+{{/*            timeoutSeconds: 5*/}}
+{{/*          readinessProbe:*/}}
+{{/*            httpGet:*/}}
+{{/*              path: /health*/}}
+{{/*              port: vllm*/}}
+{{/*            initialDelaySeconds: 60*/}}
+{{/*            periodSeconds: 10*/}}
+{{/*            timeoutSeconds: 5*/}}
+      volumes:
+        {{- if .Values.m2.persistence.enabled }}
+        - name: m2-data
+          persistentVolumeClaim:
+            claimName: {{ include "onai-three-node.m2.fullname" . }}-data
+        {{- end }}
+        {{- if .Values.m2.modelCache.enabled }}
+        - name: m2-model-cache
+          persistentVolumeClaim:
+            claimName: {{ include "onai-three-node.m2.fullname" . }}-model-cache
+        {{- end }}
+      nodeSelector:
+        {{- with .Values.m2.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.m2.gpu.enabled }}
+        cloud.google.com/gke-accelerator: {{ .Values.m2.gpu.accelerator }}
+        {{- end }}
+      {{- with .Values.m2.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.m2.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

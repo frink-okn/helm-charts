@@ -1,0 +1,33 @@
+{{- if and .Values.m3.enabled .Values.m3.ssd.enabled }}
+# Fast SSD volume for M3 (primary high-speed storage)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "onai-three-node.m3.fullname" . }}-ssd
+  labels:
+    {{- include "onai-three-node.m3.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.m3.ssd.accessMode }}
+  storageClassName: {{ .Values.m3.ssd.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.m3.ssd.size }}
+---
+{{- end }}
+{{- if and .Values.m3.enabled .Values.m3.persistence.enabled }}
+# HDD volume for M3 (code and config persistence)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "onai-three-node.m3.fullname" . }}-data
+  labels:
+    {{- include "onai-three-node.m3.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.m3.persistence.accessMode }}
+  storageClassName: {{ .Values.m3.persistence.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.m3.persistence.size }}
+{{- end }}

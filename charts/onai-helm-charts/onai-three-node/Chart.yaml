@@ -1,0 +1,15 @@
+apiVersion: v2
+name: onai-three-node
+description: |
+  Three-node architecture Helm chart.
+  M1 (Debian web frontend), M2 (vLLM GPU inference), M3 (Debian gateway/storage).
+  Uses GKE Gateway API for HTTP ingress and internal TCP for node communication.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+# kubeVersion: ">=1.24.0"
+keywords:
+  - vllm
+  - gpu
+  - inference
+  - gateway

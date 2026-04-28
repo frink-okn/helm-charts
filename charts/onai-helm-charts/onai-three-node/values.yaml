@@ -1,0 +1,299 @@
+# Default values for onai-three-node.
+# Three-node architecture: M1 (web), M2 (vLLM/GPU), M3 (gateway/storage)
+
+global:
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# =============================================================================
+# M1 - Web Frontend Node (Debian)
+# HTTP 80/443 ingress, 16GB+ RAM, 8+ CPU cores
+# =============================================================================
+m1:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: ubuntu
+    tag: "24.04"
+    pullPolicy: IfNotPresent
+
+  # Command to keep the container running - override for your app
+  command:
+    - /bin/sh
+  args: []
+
+  resources:
+    requests:
+      cpu: "8"
+      memory: "16Gi"
+    limits:
+      cpu: "16"
+      memory: "16Gi"
+
+  service:
+    type: ClusterIP
+    httpPort: 80
+    httpsPort: 443
+
+  # Environment variables for M1
+  env:
+    # Internal TCP endpoint to reach M3
+    M3_HOST: ""          # Auto-populated via service discovery
+    M3_PORT: "8080"
+    NODE_ROLE: "web"
+    HTTP_PORT: "80"
+    HTTPS_PORT: "443"
+
+  # Extra environment variables (list of name/value pairs)
+  extraEnv: []
+  # - name: MY_VAR
+  #   value: "my-value"
+
+  # Extra environment variables from secrets/configmaps
+  extraEnvFrom: []
+  # - secretRef:
+  #     name: my-secret
+
+  # HDD persistent volume for code and config
+  persistence:
+    enabled: true
+    storageClass: "standard"   # GKE HDD (pd-standard)
+    size: "50Gi"
+    accessMode: ReadWriteOnce
+    mountPath: "/data"
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+
+# =============================================================================
+# M2 - GPU / vLLM Node
+# 24 or 32GB GPU VRAM, 16GB RAM, internal TCP to M3
+# =============================================================================
+m2:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: vllm/vllm-openai
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  # vLLM command-line arguments
+  command:
+  - /bin/sh
+  args: []
+#    - "--model"
+#    - "$(VLLM_MODEL)"
+#    - "--host"
+#    - "0.0.0.0"
+#    - "--port"
+#    - "$(VLLM_PORT)"
+
+  resources:
+    requests:
+      cpu: "4"
+      memory: "16Gi"
+    limits:
+      cpu: "8"
+      memory: "16Gi"
+      # GPU limit - set via gpu.count below
+
+  # GPU configuration
+  gpu:
+    enabled: true
+    type: "nvidia.com/gpu"      # Resource key for GPU
+    count: 1                     # Number of GPUs to request
+    # Node selector for GPU type - adjust for your GKE GPU node pool
+    # Examples: nvidia-tesla-t4, nvidia-l4, nvidia-a100-80gb, nvidia-tesla-a100
+    accelerator: "nvidia-l4"
+
+  service:
+    type: ClusterIP
+    port: 8000
+
+  # Environment variables for M2
+  env:
+    VLLM_MODEL: "meta-llama/Llama-3.1-8B-Instruct"
+    VLLM_PORT: "8000"
+    VLLM_GPU_MEMORY_UTILIZATION: "0.90"
+    VLLM_MAX_MODEL_LEN: "4096"
+    VLLM_DTYPE: "auto"
+    M3_HOST: ""          # Auto-populated via service discovery
+    M3_PORT: "8080"
+    NODE_ROLE: "vllm"
+
+  # Extra environment variables
+  extraEnv: []
+  extraEnvFrom: []
+  # - secretRef:
+  #     name: huggingface-token
+
+  # HDD persistent volume for code, config, and model cache
+  persistence:
+    enabled: true
+    storageClass: "standard"   # GKE HDD (pd-standard)
+    size: "100Gi"
+    accessMode: ReadWriteOnce
+    mountPath: "/data"
+
+  # Model cache volume (separate, for HuggingFace cache)
+  modelCache:
+    enabled: true
+    storageClass: "standard"
+    size: "100Gi"
+    accessMode: ReadWriteOnce
+    mountPath: "/root/.cache/huggingface"
+
+  nodeSelector: {}
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+  affinity: {}
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+
+# =============================================================================
+# M3 - Gateway / Storage Node (Debian)
+# TCP port exposed to world, Fast SSD 250GB+, 16GB+ RAM (32GB preferred),
+# 32+ CPU cores, high quality networking
+# =============================================================================
+m3:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: us-west4-docker.pkg.dev/aardant-489720/aardant-repo/aardant
+    tag: "0.76.3"
+    pullPolicy: Always
+
+  # Command to keep the container running - override for your app
+#  command:
+#    - /bin/sh
+#  args: []
+
+  resources:
+    requests:
+      cpu: "8"
+      memory: "16Gi"
+    limits:
+      cpu: "16"
+      memory: "16Gi"
+
+  service:
+    # Internal service for M1/M2 communication
+    internalPort: 8080
+    # TCP port exposed to the outside world
+    externalPort: 9000
+    externalEnabled: true
+
+  # Environment variables for M3
+  env:
+    INTERNAL_PORT: "8080"
+    EXTERNAL_PORT: "9000"
+    M1_HOST: ""          # Auto-populated via service discovery
+    M1_HTTP_PORT: "80"
+    M2_HOST: ""          # Auto-populated via service discovery
+    M2_PORT: "8000"
+    NODE_ROLE: "gateway"
+
+  # Extra environment variables
+  extraEnv: []
+  extraEnvFrom: []
+
+  # Fast SSD persistent volume (primary storage)
+  ssd:
+    enabled: true
+    storageClass: "premium-rwo"   # GKE SSD (pd-ssd)
+    size: "250Gi"
+    accessMode: ReadWriteOnce
+    mountPath: "/fast-storage"
+
+  # HDD persistent volume for code and config
+  persistence:
+    enabled: true
+    storageClass: "standard"   # GKE HDD (pd-standard)
+    size: "50Gi"
+    accessMode: ReadWriteOnce
+    mountPath: "/data"
+
+  deploymentStrategy: "Recreate"
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  podSecurityContext:
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
+  securityContext: {}
+
+# =============================================================================
+# GKE Gateway Ingress (for M1 HTTP traffic)
+# =============================================================================
+gateway:
+  enabled: false
+  # GKE Gateway class - gke-l7-global-external-managed for external HTTP(S)
+  gatewayClassName: "gke-l7-global-external-managed"
+
+  # Gateway listeners
+  listeners:
+    http:
+      port: 80
+      protocol: HTTP
+    https:
+      port: 443
+      protocol: HTTPS
+      # TLS certificate - provide a Kubernetes secret or GKE-managed cert
+      certificateRef:
+        name: ""           # e.g., "my-tls-cert"
+        namespace: ""      # Leave empty for same namespace
+
+  # HTTPRoute configuration
+  httpRoute:
+    hostnames: []
+    # - "app.example.com"
+
+    # Redirect HTTP to HTTPS
+    httpsRedirect: false
+
+    # Additional route rules
+    rules: []
+    # - matches:
+    #     - path:
+    #         type: PathPrefix
+    #         value: /api
+    #   backendRefs:
+    #     - name: custom-backend
+    #       port: 8080
+
+  # Annotations for the Gateway resource
+  annotations: {}
+
+# =============================================================================
+# TCP Route for M3 external access
+# =============================================================================
+tcpRoute:
+  enabled: false
+  # Separate gateway for TCP traffic to M3
+  gatewayClassName: "gke-l7-regional-internal-managed"
+  port: 9000
+
+# =============================================================================
+# Network Policy - restrict internal communication
+# =============================================================================
+networkPolicy:
+  enabled: true
