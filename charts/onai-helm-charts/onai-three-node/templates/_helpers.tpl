@@ -36,6 +36,10 @@ Per-node fully qualified names
 {{- printf "%s-m3" (include "onai-three-node.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{- define "onai-three-node.m4.fullname" -}}
+{{- printf "%s-m4" (include "onai-three-node.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
 {{/*
 Chart name and version as used by the chart label.
 */}}
@@ -75,6 +79,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: m3-gateway
 {{- end }}
 
+{{- define "onai-three-node.m4.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "onai-three-node.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: m4-vllm-gateway
+{{- end }}
+
 {{/*
 Per-node labels (common + selector)
 */}}
@@ -91,6 +101,11 @@ Per-node labels (common + selector)
 {{- define "onai-three-node.m3.labels" -}}
 {{ include "onai-three-node.labels" . }}
 {{ include "onai-three-node.m3.selectorLabels" . }}
+{{- end }}
+
+{{- define "onai-three-node.m4.labels" -}}
+{{ include "onai-three-node.labels" . }}
+{{ include "onai-three-node.m4.selectorLabels" . }}
 {{- end }}
 
 {{/*
@@ -123,4 +138,11 @@ M2 internal service FQDN
 */}}
 {{- define "onai-three-node.m2.internalHost" -}}
 {{- printf "%s.%s.svc.cluster.local" (include "onai-three-node.m2.fullname" .) .Release.Namespace }}
+{{- end }}
+
+{{/*
+M4 internal service FQDN
+*/}}
+{{- define "onai-three-node.m4.internalHost" -}}
+{{- printf "%s.%s.svc.cluster.local" (include "onai-three-node.m4.fullname" .) .Release.Namespace }}
 {{- end }}

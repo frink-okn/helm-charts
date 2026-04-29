@@ -1,0 +1,102 @@
+{{- if .Values.m4.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "onai-three-node.m4.fullname" . }}
+  labels:
+    {{- include "onai-three-node.m4.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.m4.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "onai-three-node.m4.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.m4.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "onai-three-node.m4.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "onai-three-node.serviceAccountName" . }}
+      {{- with .Values.m4.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: m4-vllm-gateway
+          {{- with .Values.m4.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          stdin: True
+          tty: True
+          image: "{{ .Values.m4.image.repository }}:{{ .Values.m4.image.tag }}"
+          imagePullPolicy: {{ .Values.m4.image.pullPolicy }}
+          {{- with .Values.m4.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.m4.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: internal
+              containerPort: {{ .Values.m4.service.internalPort }}
+              protocol: TCP
+            {{- if .Values.m4.service.externalEnabled }}
+            - name: external
+              containerPort: {{ .Values.m4.service.externalPort }}
+              protocol: TCP
+            {{- end }}
+          env:
+            - name: INTERNAL_PORT
+              value: {{ .Values.m4.env.INTERNAL_PORT | quote }}
+            - name: EXTERNAL_PORT
+              value: {{ .Values.m4.env.EXTERNAL_PORT | quote }}
+            - name: M2_HOST
+              value: {{ .Values.m4.env.M2_HOST | default (include "onai-three-node.m2.internalHost" .) | quote }}
+            - name: M2_PORT
+              value: {{ .Values.m4.env.M2_PORT | quote }}
+            - name: NODE_ROLE
+              value: {{ .Values.m4.env.NODE_ROLE | quote }}
+            {{- range .Values.m4.extraEnv }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+          {{- with .Values.m4.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.m4.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.m4.persistence.enabled }}
+            - name: m4-data
+              mountPath: {{ .Values.m4.persistence.mountPath }}
+            {{- end }}
+      volumes:
+        {{- if .Values.m4.persistence.enabled }}
+        - name: m4-data
+          persistentVolumeClaim:
+            claimName: {{ include "onai-three-node.m4.fullname" . }}-data
+        {{- end }}
+      {{- with .Values.m4.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.m4.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.m4.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

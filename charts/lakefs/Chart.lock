@@ -1,12 +1,12 @@
 dependencies:
 - name: lakefs
   repository: https://charts.lakefs.io
-  version: 1.7.17
+  version: 1.9.1
 - name: postgresql
   repository: oci://registry-1.docker.io/bitnamicharts
   version: 16.7.21
 - name: lakefs-acl
   repository: oci://ghcr.io/frink-okn/charts
   version: 1.0.1
-digest: sha256:f5a24130a7a086dd2847e283d4e7cd0dad485c21cc7c09c8137d09576b020562
-generated: "2026-01-28T18:16:01.32047508-05:00"
+digest: sha256:62a233c0a325d0bce625a4bfa4aa0ad1f00f5ebe19ae6b59c704fbf9e826e257
+generated: "2026-04-28T13:27:18.635301765-04:00"

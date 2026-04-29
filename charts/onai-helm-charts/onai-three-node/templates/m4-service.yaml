@@ -1,0 +1,39 @@
+{{- if .Values.m4.enabled }}
+# Internal ClusterIP service for M2 -> M4 communication
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "onai-three-node.m4.fullname" . }}
+  labels:
+    {{- include "onai-three-node.m4.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.m4.service.internalPort }}
+      targetPort: internal
+      protocol: TCP
+      name: internal
+  selector:
+    {{- include "onai-three-node.m4.selectorLabels" . | nindent 4 }}
+---
+{{- if .Values.m4.service.externalEnabled }}
+# External LoadBalancer service for M4 TCP egress to the world
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "onai-three-node.m4.fullname" . }}-external
+  labels:
+    {{- include "onai-three-node.m4.labels" . | nindent 4 }}
+  annotations:
+    cloud.google.com/neg: '{"exposed_ports":{"{{ .Values.m4.service.externalPort }}":{}}}'
+spec:
+  type: LoadBalancer
+  ports:
+    - port: {{ .Values.m4.service.externalPort }}
+      targetPort: external
+      protocol: TCP
+      name: external
+  selector:
+    {{- include "onai-three-node.m4.selectorLabels" . | nindent 4 }}
+{{- end }}
+{{- end }}

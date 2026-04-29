@@ -6,7 +6,7 @@ replicaCount: 2
 
 image:
   repository: containers.renci.org/frink/wobd-ui
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: "v0.0.1"
 
@@ -68,6 +68,7 @@ gateway:
       namespace: ingress
   host: "frink-apps.35.186.218.150.nip.io"
   path: "/wobd"
+  timeoutSec: 600
 #  healthCheckPath: "/wobd/"
 
 resources:

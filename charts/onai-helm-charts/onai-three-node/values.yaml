@@ -131,6 +131,8 @@ m2:
     VLLM_DTYPE: "auto"
     M3_HOST: ""          # Auto-populated via service discovery
     M3_PORT: "8080"
+    M4_HOST: ""          # Auto-populated via service discovery
+    M4_PORT: "8090"
     NODE_ROLE: "vllm"
 
   # Extra environment variables
@@ -239,6 +241,67 @@ m3:
     runAsUser: 999
     runAsGroup: 999
     fsGroup: 999
+  securityContext: {}
+
+# =============================================================================
+# M4 - VLLM-Gateway Node (Debian)
+# Sits between M2 and the outside world. Internal TCP from M2 + external TCP
+# port exposed to world (mirrors M3 pattern). 4GB RAM, 20G persistent storage.
+# =============================================================================
+m4:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: ubuntu
+    tag: "24.04"
+    pullPolicy: IfNotPresent
+
+  # Command to keep the container running - override for your gateway binary
+  command:
+    - /bin/sh
+  args: []
+
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "4Gi"
+
+  service:
+    # Internal service for M2 -> M4 communication
+    internalPort: 8090
+    # TCP port exposed to the outside world (mirrors M3)
+    externalPort: 9001
+    externalEnabled: true
+
+  # Environment variables for M4
+  env:
+    INTERNAL_PORT: "8090"
+    EXTERNAL_PORT: "9001"
+    M2_HOST: ""          # Auto-populated via service discovery
+    M2_PORT: "8000"
+    NODE_ROLE: "vllm-gateway"
+
+  # Extra environment variables
+  extraEnv: []
+  extraEnvFrom: []
+
+  # HDD persistent volume for code and config
+  persistence:
+    enabled: true
+    storageClass: "standard"   # GKE HDD (pd-standard)
+    size: "20Gi"
+    accessMode: ReadWriteOnce
+    mountPath: "/data"
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  podSecurityContext: {}
   securityContext: {}
 
 # =============================================================================

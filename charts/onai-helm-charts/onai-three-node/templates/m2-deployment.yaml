@@ -65,6 +65,10 @@ spec:
               value: {{ .Values.m2.env.M3_HOST | default (include "onai-three-node.m3.internalHost" .) | quote }}
             - name: M3_PORT
               value: {{ .Values.m2.env.M3_PORT | quote }}
+            - name: M4_HOST
+              value: {{ .Values.m2.env.M4_HOST | default (include "onai-three-node.m4.internalHost" .) | quote }}
+            - name: M4_PORT
+              value: {{ .Values.m2.env.M4_PORT | quote }}
             - name: NODE_ROLE
               value: {{ .Values.m2.env.NODE_ROLE | quote }}
             {{- range .Values.m2.extraEnv }}
