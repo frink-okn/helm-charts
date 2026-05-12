@@ -7,6 +7,8 @@ metadata:
     {{- include "onai-three-node.m4.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.m4.replicaCount }}
+  strategy:
+    type: {{ .Values.m4.deploymentStrategy | default "Recreate" }}
   selector:
     matchLabels:
       {{- include "onai-three-node.m4.selectorLabels" . | nindent 6 }}
@@ -28,6 +30,31 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |              
+              {{- if .Values.m4.persistence.enabled }}
+              chown -R {{ .Values.m4.podSecurityContext.runAsUser | default 999 }}:{{ .Values.m4.podSecurityContext.fsGroup | default 999 }} {{ .Values.m4.persistence.mountPath }} && \
+              chmod -R g+rw {{ .Values.m4.persistence.mountPath }}
+              {{- end }}
+          securityContext:
+            runAsUser: 0
+          resources:
+            limits:
+              cpu: 1
+              memory: 1Gi
+            requests:
+              cpu: 1
+              memory: 1Gi
+          volumeMounts:
+          {{- if .Values.m4.persistence.enabled }}
+          - name: m4-data
+            mountPath: {{ .Values.m4.persistence.mountPath }}
+          {{- end }}
       containers:
         - name: m4-vllm-gateway
           {{- with .Values.m4.securityContext }}

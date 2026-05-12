@@ -34,6 +34,14 @@ spec:
       ports:
         - port: {{ .Values.m3.service.internalPort }}
           protocol: TCP
+    # Allow traffic to M2
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m2.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m2.service.port }}
+          protocol: TCP
     # Allow DNS
     - ports:
         - port: 53
@@ -56,6 +64,14 @@ spec:
     - Ingress
     - Egress
   ingress:
+    # Allow internal TCP from M1
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m1.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m2.service.port }}
+          protocol: TCP
     # Allow internal TCP from M3
     - from:
         - podSelector:

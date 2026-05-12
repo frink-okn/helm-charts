@@ -16,9 +16,6 @@ spec:
     - path:
         type: PathPrefix
         value: {{ .Values.gateway.path }}
-    timeouts:
-      request: {{ .Values.gateway.timeoutSec | default 600 }}s
-      backendRequest: {{ .Values.gateway.timeoutSec | default 600 }}s
     backendRefs:
     - name: {{ include "wobd.fullname" . }}
       port: {{ .Values.service.port }}
@@ -50,6 +47,22 @@ spec:
       httpHealthCheck:
         port: {{ .Values.service.port }}
         requestPath: {{ .Values.gateway.healthCheckPath | default .Values.gateway.path }}
+  targetRef:
+    group: ""
+    kind: Service
+    name: {{ include "wobd.fullname" . }}
+---
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: {{ include "wobd.fullname" . }}
+spec:
+  default:
+    # 600s (10m) is great for heavy SPARQL, but we'll also add
+    # connection draining to prevent 502s during rollouts.
+    timeoutSec: {{ .Values.gateway.timeoutSec | default 600 }}
+    connectionDraining:
+      drainingTimeoutSec: {{ .Values.gateway.connectionDrainingTimeoutSec | default 60 }}
   targetRef:
     group: ""
     kind: Service

@@ -1,74 +1,62 @@
 {{- if .Values.gateway.enabled }}
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: Gateway
-metadata:
-  name: {{ include "onai-three-node.fullname" . }}-gateway
-  labels:
-    {{- include "onai-three-node.labels" . | nindent 4 }}
-  {{- with .Values.gateway.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-spec:
-  gatewayClassName: {{ .Values.gateway.gatewayClassName }}
-  listeners:
-    - name: http
-      port: {{ .Values.gateway.listeners.http.port }}
-      protocol: {{ .Values.gateway.listeners.http.protocol }}
-      allowedRoutes:
-        namespaces:
-          from: Same
-    {{- if and .Values.gateway.listeners.https .Values.gateway.listeners.https.certificateRef.name }}
-    - name: https
-      port: {{ .Values.gateway.listeners.https.port }}
-      protocol: {{ .Values.gateway.listeners.https.protocol }}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: {{ .Values.gateway.listeners.https.certificateRef.name }}
-            {{- if .Values.gateway.listeners.https.certificateRef.namespace }}
-            namespace: {{ .Values.gateway.listeners.https.certificateRef.namespace }}
-            {{- end }}
-      allowedRoutes:
-        namespaces:
-          from: Same
-    {{- end }}
----
-# HTTPRoute: routes HTTP traffic to M1
-apiVersion: gateway.networking.k8s.io/v1beta1
+apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ include "onai-three-node.fullname" . }}-http-route
+  name: {{ include "onai-three-node.m1.fullname" . }}
   labels:
-    {{- include "onai-three-node.labels" . | nindent 4 }}
+    {{- include "onai-three-node.m1.labels" . | nindent 4 }}
 spec:
   parentRefs:
-    - name: {{ include "onai-three-node.fullname" . }}-gateway
-  {{- with .Values.gateway.httpRoute.hostnames }}
-  hostnames:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-  rules:
-    {{- if .Values.gateway.httpRoute.httpsRedirect }}
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /
-      filters:
-        - type: RequestRedirect
-          requestRedirect:
-            scheme: https
-            statusCode: 301
+    {{- range .Values.gateway.parentRefs }}
+    - name: {{ .name }}
+      namespace: {{ .namespace }}
     {{- end }}
+  hostnames:
+    - {{ .Values.gateway.host | quote }}
+  rules:
     - matches:
         - path:
             type: PathPrefix
-            value: /
+            value: {{ .Values.gateway.path }}
       backendRefs:
         - name: {{ include "onai-three-node.m1.fullname" . }}
           port: {{ .Values.m1.service.httpPort }}
-    {{- range .Values.gateway.httpRoute.rules }}
-    - {{- toYaml . | nindent 6 }}
-    {{- end }}
+---
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: {{ include "onai-three-node.m1.fullname" . }}
+  labels:
+    {{- include "onai-three-node.m1.labels" . | nindent 4 }}
+spec:
+  default:
+    timeoutSec: {{ .Values.gateway.timeoutSec | default 600 }}
+    connectionDraining:
+      drainingTimeoutSec: {{ .Values.gateway.connectionDrainingTimeoutSec | default 60 }}
+  targetRef:
+    group: ""
+    kind: Service
+    name: {{ include "onai-three-node.m1.fullname" . }}
+---
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: {{ include "onai-three-node.m1.fullname" . }}
+  labels:
+    {{- include "onai-three-node.m1.labels" . | nindent 4 }}
+spec:
+  default:
+    checkIntervalSec: {{ .Values.gateway.healthCheck.checkIntervalSec | default 10 }}
+    timeoutSec: {{ .Values.gateway.healthCheck.timeoutSec | default 5 }}
+    healthyThreshold: {{ .Values.gateway.healthCheck.healthyThreshold | default 2 }}
+    unhealthyThreshold: {{ .Values.gateway.healthCheck.unhealthyThreshold | default 2 }}
+    config:
+      type: HTTP
+      httpHealthCheck:
+        port: {{ .Values.m1.service.httpPort }}
+        requestPath: {{ .Values.gateway.healthCheckPath | default .Values.gateway.path }}
+  targetRef:
+    group: ""
+    kind: Service
+    name: {{ include "onai-three-node.m1.fullname" . }}
 {{- end }}

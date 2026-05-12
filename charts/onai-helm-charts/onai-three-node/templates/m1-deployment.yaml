@@ -7,6 +7,8 @@ metadata:
     {{- include "onai-three-node.m1.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.m1.replicaCount }}
+  strategy:
+    type: {{ .Values.m1.deploymentStrategy | default "Recreate" }}
   selector:
     matchLabels:
       {{- include "onai-three-node.m1.selectorLabels" . | nindent 6 }}
@@ -28,6 +30,31 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |              
+              {{- if .Values.m1.persistence.enabled }}
+              chown -R {{ .Values.m1.podSecurityContext.runAsUser | default 999 }}:{{ .Values.m1.podSecurityContext.fsGroup | default 999 }} {{ .Values.m1.persistence.mountPath }} && \
+              chmod -R g+rw {{ .Values.m1.persistence.mountPath }}
+              {{- end }}
+          securityContext:
+            runAsUser: 0
+          resources:
+            limits:
+              cpu: 1
+              memory: 1Gi
+            requests:
+              cpu: 1
+              memory: 1Gi
+          volumeMounts:
+          {{- if .Values.m1.persistence.enabled }}
+          - name: m1-data
+            mountPath: {{ .Values.m1.persistence.mountPath }}
+          {{- end }}
       containers:
         - name: m1-web
           {{- with .Values.m1.securityContext }}
