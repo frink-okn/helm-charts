@@ -6,7 +6,7 @@ Helm charts for the ONAI multi-node stack.
 |---|---|---|
 | `onai-three-node` | [`./onai-three-node`](./onai-three-node) | Four-pod architecture (M1/M2/M3/M4) — web frontend, vLLM GPU inference, gateway/storage, vLLM gateway. |
 
-> The directory is named `three-node` for historical reasons. It currently ships **four** components (M1–M4). Each `mN` block in `values.yaml` is independently toggleable via `mN.enabled`.
+> Directory named `three-node` for historical reasons. Currently ships **four** components (M1–M4). Each `mN` block in `values.yaml` independently toggleable via `mN.enabled`.
 
 ---
 
@@ -14,6 +14,8 @@ Helm charts for the ONAI multi-node stack.
 
 - **Chart version:** `0.1.0`
 - **App version:** `1.0.0`
+- **Release name:** `spider`
+- **Target namespace:** `spider`
 
 ### Components
 
@@ -22,7 +24,7 @@ Helm charts for the ONAI multi-node stack.
 | **M1** | Web frontend (Debian) — HTTP `80`/`443` ingress via Gateway API | `us-west4-docker.pkg.dev/aardant-489720/aardant-repo/okn.us-website` | `0.0.11` |
 | **M2** | vLLM GPU inference (default model: `Qwen/Qwen3-14B-AWQ`) | `vllm/vllm-openai` | `latest-cu129` |
 | **M3** | Gateway / storage relay (fast SSD, externally exposed TCP) | `us-west4-docker.pkg.dev/aardant-489720/aardant-repo/aardant-unc-relay` | `0.77.1` |
-| **M4** | vLLM gateway — sits between M2 and the outside world | `us-west4-docker.pkg.dev/aardant-489720/aardant-repo/aardant-vllm-gateway` | `0.0.1` |
+| **M4** | vLLM gateway — sits between M2 and outside world | `us-west4-docker.pkg.dev/aardant-489720/aardant-repo/aardant-vllm-gateway` | `0.0.1` |
 
 ### What gets deployed (per pod)
 
@@ -38,25 +40,18 @@ Plus cluster-wide:
 - GKE Gateway `HTTPRoute` + `GCPBackendPolicy` + `HealthCheckPolicy` for M1 (`templates/gateway.yaml`)
 - Optional `NetworkPolicy` (`templates/networkpolicy.yaml`, gated by `networkPolicy.enabled`)
 
-### Install / upgrade (Helm users)
+### Install / upgrade
 
 ```bash
-helm upgrade --install onai ./charts/onai-helm-charts/onai-three-node \
-  --namespace onai --create-namespace \
+helm upgrade --install spider ./charts/onai-helm-charts/onai-three-node \
+  --namespace spider --create-namespace \
   -f my-values.yaml
-```
-
-Override a single image tag from the CLI:
-
-```bash
-helm upgrade --install onai ./charts/onai-helm-charts/onai-three-node \
-  --set m2.image.tag=v0.7.3
 ```
 
 Render-only (preview manifests):
 
 ```bash
-helm template onai ./charts/onai-helm-charts/onai-three-node -f my-values.yaml
+helm template spider ./charts/onai-helm-charts/onai-three-node -f my-values.yaml
 ```
 
 ### Key values
@@ -82,13 +77,11 @@ Full schema in [`onai-three-node/values.yaml`](./onai-three-node/values.yaml).
 
 ---
 
-## Bumping images (non-Helm users)
+## Bumping images
 
-If you do not run `helm upgrade` directly (GitOps via Argo CD / Flux, or hand-edited manifests), bump images the same way — change the tag, let your pipeline reconcile.
+Each pod has its own `image.repository` / `image.tag` block under `m1`, `m2`, `m3`, `m4`. Bump only the one you need. Both paths below go through Helm so release history stays intact for rollback.
 
-Each pod has its own `image.repository` / `image.tag` block under `m1`, `m2`, `m3`, `m4`. Bump only the one you need.
-
-### Option A — edit `values.yaml`, let GitOps reconcile
+### Option A — edit `values.yaml` then upgrade
 
 ```yaml
 # onai-three-node/values.yaml
@@ -103,49 +96,35 @@ m4:
     tag: "0.0.2"    # was 0.0.1
 ```
 
-Commit + push. Argo CD / Flux re-render the chart and apply the updated Deployments.
+Apply:
 
-> Avoid floating tags like `latest-cu129` in production — pin a digest or semver tag so rollouts are reproducible. See [Kubernetes image policy](https://kubernetes.io/docs/concepts/containers/images/#image-names).
-
-### Option B — environment-specific overrides
-
-```yaml
-# values/prod.yaml
-m1:
-  image:
-    tag: "0.0.12"
-m2:
-  image:
-    tag: "v0.7.3"
+```bash
+helm upgrade spider ./charts/onai-helm-charts/onai-three-node --namespace spider
 ```
 
-Wire `values/prod.yaml` into your delivery tool:
+> Avoid floating tags like `latest-cu129` in production — pin digest or semver tag so rollouts reproducible. See [Kubernetes image policy](https://kubernetes.io/docs/concepts/containers/images/#image-names).
 
-- Argo CD `Application` (Helm source): https://argo-cd.readthedocs.io/en/stable/user-guide/helm/
-- Flux `HelmRelease`: https://fluxcd.io/flux/components/helm/helmreleases/
-- Helm `-f` flag: https://helm.sh/docs/chart_template_guide/values_files/
-
-### Option C — one-off `helm upgrade --set`
+### Option B — one-off `--set` override
 
 Bump one or more pod tags without editing values:
 
 ```bash
-helm upgrade onai ./charts/onai-helm-charts/onai-three-node \
-  --namespace onai --reuse-values \
+helm upgrade spider ./charts/onai-helm-charts/onai-three-node \
+  --namespace spider --reuse-values \
   --set m2.image.tag=v0.7.3 \
   --set m4.image.tag=0.0.2
 ```
 
 `--reuse-values` keeps prior overrides. Docs: https://helm.sh/docs/helm/helm_upgrade/
 
-> Always go through Helm so revisions track in release history — needed for `helm rollback`. Out-of-band edits (`kubectl edit`, `kubectl set image`) bypass release history and break rollback.
+> Always go through Helm so revisions track in release history. Out-of-band edits (`kubectl edit`, `kubectl set image`) bypass release history and break `helm rollback` — avoid them.
 
 ### Verify
 
 ```bash
-helm -n onai get values onai
-helm -n onai status onai
-helm -n onai history onai
+helm -n spider get values spider
+helm -n spider status spider
+helm -n spider history spider
 ```
 
 Docs: https://helm.sh/docs/helm/helm_history/
@@ -155,8 +134,8 @@ Docs: https://helm.sh/docs/helm/helm_history/
 List revisions, roll back to prior good one:
 
 ```bash
-helm -n onai history onai
-helm -n onai rollback onai <REVISION>
+helm -n spider history spider
+helm -n spider rollback spider <REVISION>
 ```
 
 Docs: https://helm.sh/docs/helm/helm_rollback/
@@ -165,9 +144,9 @@ Docs: https://helm.sh/docs/helm/helm_rollback/
 
 ## GPU notes (M2)
 
-- Requires a GKE node pool with NVIDIA GPUs and the NVIDIA device plugin installed: https://cloud.google.com/kubernetes-engine/docs/how-to/gpus
-- Adjust `m2.gpu.accelerator` to match your node pool label (`nvidia-l4`, `nvidia-tesla-t4`, `nvidia-a100-80gb`, ...).
-- HuggingFace cache PVC (`m2.modelCache`) is separate from the code PVC so model downloads survive pod restarts.
+- Requires GKE node pool with NVIDIA GPUs and NVIDIA device plugin installed: https://cloud.google.com/kubernetes-engine/docs/how-to/gpus
+- Adjust `m2.gpu.accelerator` to match node pool label (`nvidia-l4`, `nvidia-tesla-t4`, `nvidia-a100-80gb`, ...).
+- HuggingFace cache PVC (`m2.modelCache`) separate from code PVC so model downloads survive pod restarts.
 
 ## References
 
