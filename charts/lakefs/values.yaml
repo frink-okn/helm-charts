@@ -75,14 +75,11 @@ lakefs:
   secrets:
     authEncryptSecretKey:  ""
     databaseConnectionString: postgres://lakefs:lakefs@lakefs-postgresql:5432/lakefs?sslmode=disable
-  lakefsConfig: { }
-        
-
-#
-#blockstore:
-#  type: local
-#  local:
-#    path: "/data"
+  lakefsConfig: ""
+    #blockstore:
+    #  type: local
+    #  local:
+    #    path: "/data"
 
   useDevPostgres: false
 
@@ -116,7 +113,7 @@ lakefs-acl:
       name: ""     # If set, uses this existing secret name instead of creating one
     # Secrets (will be base64 encoded by the chart if create=true)
     apiToken: "super-secret-token"
-    encryptionKey: "G0lMOOHFOfb8oUUzLZxHlhjRKryUQQvchzwhBg-kTm4="
+    encryptionKey: ""
 
     # Persistence for SQLite (optional, if using SQLite)
     persistence:

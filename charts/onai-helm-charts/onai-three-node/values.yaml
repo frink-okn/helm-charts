@@ -20,13 +20,12 @@ m1:
   replicaCount: 1
 
   image:
-    repository: ubuntu
-    tag: "24.04"
-    pullPolicy: IfNotPresent
+    repository: us-west4-docker.pkg.dev/aardant-489720/aardant-repo/okn.us-website
+    tag: "0.0.11"
+    pullPolicy: Always
 
   # Command to keep the container running - override for your app
-  command:
-    - /bin/sh
+  command: []
   args: []
 
   resources:
@@ -86,19 +85,23 @@ m2:
 
   image:
     repository: vllm/vllm-openai
-    tag: "latest"
-    pullPolicy: IfNotPresent
+    tag: "latest-cu129"
+    pullPolicy: Always
 
   # vLLM command-line arguments
-  command:
-  - /bin/sh
-  args: []
-#    - "--model"
-#    - "$(VLLM_MODEL)"
-#    - "--host"
-#    - "0.0.0.0"
-#    - "--port"
-#    - "$(VLLM_PORT)"
+  command: []
+#  - /bin/sh
+  args:
+    - "--model"
+    - "$(VLLM_MODEL)"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "$(VLLM_PORT)"
+    - "--max-num-seqs"
+    - "4"
+    - "--max-num-batched-tokens"
+    - "4096"
 
   resources:
     requests:
@@ -124,13 +127,15 @@ m2:
 
   # Environment variables for M2
   env:
-    VLLM_MODEL: "meta-llama/Llama-3.1-8B-Instruct"
+    VLLM_MODEL: "Qwen/Qwen3-14B-AWQ"
     VLLM_PORT: "8000"
-    VLLM_GPU_MEMORY_UTILIZATION: "0.90"
-    VLLM_MAX_MODEL_LEN: "4096"
-    VLLM_DTYPE: "auto"
+    VLLM_GPU_MEMORY_UTILIZATION: "0.80"
+    VLLM_MAX_MODEL_LEN: "2048"
+    VLLM_DTYPE: "bfloat16"
     M3_HOST: ""          # Auto-populated via service discovery
     M3_PORT: "8080"
+    M4_HOST: ""          # Auto-populated via service discovery
+    M4_PORT: "8090"
     NODE_ROLE: "vllm"
 
   # Extra environment variables
@@ -175,8 +180,8 @@ m3:
   replicaCount: 1
 
   image:
-    repository: us-west4-docker.pkg.dev/aardant-489720/aardant-repo/aardant
-    tag: "0.76.3"
+    repository: us-west4-docker.pkg.dev/aardant-489720/aardant-repo/aardant-unc-relay
+    tag: "0.77.1"
     pullPolicy: Always
 
   # Command to keep the container running - override for your app
@@ -242,46 +247,96 @@ m3:
   securityContext: {}
 
 # =============================================================================
-# GKE Gateway Ingress (for M1 HTTP traffic)
+# M4 - VLLM-Gateway Node (Debian)
+# Sits between M2 and the outside world. Internal TCP from M2 + external TCP
+# port exposed to world (mirrors M3 pattern). 4GB RAM, 20G persistent storage.
+# =============================================================================
+m4:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: us-west4-docker.pkg.dev/aardant-489720/aardant-repo/aardant-vllm-gateway
+    tag: "0.0.1"
+    pullPolicy: Always
+
+  # Command to keep the container running - override for your gateway binary
+  command: []
+  args: []
+
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "4Gi"
+
+  service:
+    # Internal service for M2 -> M4 communication
+    internalPort: 8090
+    # TCP port exposed to the outside world (mirrors M3)
+    externalPort: 9001
+    externalEnabled: true
+
+  # Environment variables for M4
+  env:
+    INTERNAL_PORT: "8090"
+    EXTERNAL_PORT: "9001"
+    M2_HOST: ""          # Auto-populated via service discovery
+    M2_PORT: "8000"
+    NODE_ROLE: "vllm-gateway"
+
+  # Extra environment variables
+  extraEnv: []
+  extraEnvFrom: []
+
+  # HDD persistent volume for code and config
+  persistence:
+    enabled: true
+    storageClass: "standard"   # GKE HDD (pd-standard)
+    size: "20Gi"
+    accessMode: ReadWriteOnce
+    mountPath: "/data"
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+
+# =============================================================================
+# GKE Gateway Ingress (HTTPRoute for M1 HTTP traffic)
+# Attaches to an existing parent Gateway. Adds GCPBackendPolicy
+# (timeout + connection draining) and HealthCheckPolicy targeting M1 service.
 # =============================================================================
 gateway:
-  enabled: false
-  # GKE Gateway class - gke-l7-global-external-managed for external HTTP(S)
-  gatewayClassName: "gke-l7-global-external-managed"
+  enabled: true
 
-  # Gateway listeners
-  listeners:
-    http:
-      port: 80
-      protocol: HTTP
-    https:
-      port: 443
-      protocol: HTTPS
-      # TLS certificate - provide a Kubernetes secret or GKE-managed cert
-      certificateRef:
-        name: ""           # e.g., "my-tls-cert"
-        namespace: ""      # Leave empty for same namespace
+  # Parent Gateway(s) to attach the HTTPRoute to (must already exist).
+  parentRefs:
+    - name: ingress-gateway
+      namespace: ingress
 
-  # HTTPRoute configuration
-  httpRoute:
-    hostnames: []
-    # - "app.example.com"
+  # Hostname routed to M1
+  host: "okn.us"
+  # Path prefix routed to M1
+  path: "/"
 
-    # Redirect HTTP to HTTPS
-    httpsRedirect: false
+  # GCPBackendPolicy timeouts (seconds)
+  timeoutSec: 600
+  connectionDrainingTimeoutSec: 60
 
-    # Additional route rules
-    rules: []
-    # - matches:
-    #     - path:
-    #         type: PathPrefix
-    #         value: /api
-    #   backendRefs:
-    #     - name: custom-backend
-    #       port: 8080
+  # Optional: separate health check path. Defaults to gateway.path.
+  # healthCheckPath: "/"
 
-  # Annotations for the Gateway resource
-  annotations: {}
+  # HealthCheckPolicy tuning
+  healthCheck:
+    checkIntervalSec: 10
+    timeoutSec: 5
+    healthyThreshold: 2
+    unhealthyThreshold: 2
 
 # =============================================================================
 # TCP Route for M3 external access
@@ -296,4 +351,4 @@ tcpRoute:
 # Network Policy - restrict internal communication
 # =============================================================================
 networkPolicy:
-  enabled: true
+  enabled: false

@@ -20,6 +20,12 @@ Components:
                  SSD Volume: {{ .Values.m3.ssd.size }} at {{ .Values.m3.ssd.mountPath }}
                  HDD Volume: {{ .Values.m3.persistence.size }} at {{ .Values.m3.persistence.mountPath }}
 {{- end }}
+{{- if .Values.m4.enabled }}
+  M4 (VLLM-GW): {{ include "onai-three-node.m4.fullname" . }}
+                 Internal: {{ .Values.m4.service.internalPort }}
+                 External: {{ .Values.m4.service.externalPort }}
+                 HDD Volume: {{ .Values.m4.persistence.size }} at {{ .Values.m4.persistence.mountPath }}
+{{- end }}
 
 {{- if .Values.gateway.enabled }}
 
@@ -34,5 +40,7 @@ GKE Gateway:
 Service Discovery (auto-configured env vars):
   M1 -> M3: $M3_HOST:$M3_PORT
   M2 -> M3: $M3_HOST:$M3_PORT
+  M2 -> M4: $M4_HOST:$M4_PORT
   M3 -> M1: $M1_HOST:$M1_HTTP_PORT
   M3 -> M2: $M2_HOST:$M2_PORT
+  M4 -> M2: $M2_HOST:$M2_PORT

@@ -34,6 +34,14 @@ spec:
       ports:
         - port: {{ .Values.m3.service.internalPort }}
           protocol: TCP
+    # Allow traffic to M2
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m2.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m2.service.port }}
+          protocol: TCP
     # Allow DNS
     - ports:
         - port: 53
@@ -56,11 +64,27 @@ spec:
     - Ingress
     - Egress
   ingress:
+    # Allow internal TCP from M1
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m1.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m2.service.port }}
+          protocol: TCP
     # Allow internal TCP from M3
     - from:
         - podSelector:
             matchLabels:
               {{- include "onai-three-node.m3.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m2.service.port }}
+          protocol: TCP
+    # Allow internal TCP from M4
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m4.selectorLabels" . | nindent 14 }}
       ports:
         - port: {{ .Values.m2.service.port }}
           protocol: TCP
@@ -72,6 +96,14 @@ spec:
               {{- include "onai-three-node.m3.selectorLabels" . | nindent 14 }}
       ports:
         - port: {{ .Values.m3.service.internalPort }}
+          protocol: TCP
+    # Allow traffic to M4 internal port
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m4.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m4.service.internalPort }}
           protocol: TCP
     # Allow DNS
     - ports:
@@ -132,6 +164,60 @@ spec:
       ports:
         - port: {{ .Values.m1.service.httpPort }}
           protocol: TCP
+    # Allow traffic to M2
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m2.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m2.service.port }}
+          protocol: TCP
+    # Allow DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow TCP egress to outside world
+    - ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+---
+# M4 network policy: VLLM-Gateway, talks to M2 + external world
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "onai-three-node.m4.fullname" . }}-netpol
+  labels:
+    {{- include "onai-three-node.m4.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "onai-three-node.m4.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow internal TCP from M2
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "onai-three-node.m2.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.m4.service.internalPort }}
+          protocol: TCP
+    {{- if .Values.m4.service.externalEnabled }}
+    # Allow external TCP ingress
+    - ports:
+        - port: {{ .Values.m4.service.externalPort }}
+          protocol: TCP
+    {{- end }}
+  egress:
     # Allow traffic to M2
     - to:
         - podSelector:
